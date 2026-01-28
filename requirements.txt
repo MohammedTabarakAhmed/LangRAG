@@ -2,4 +2,24 @@ langchain
 langchain-core
 langchain-community
 pypdf
-pymupdf
+PyMuPDF
+
+# Core ML stack
+torch==2.2.1
+transformers==4.41.2
+sentence-transformers==2.7.0
+
+# Retrieval & vector database
+chromadb==0.5.0
+
+# Utilities
+numpy==1.26.4
+scikit-learn==1.5.0
+scipy==1.13.0
+tqdm==4.66.2
+typing-extensions==4.12.0
+uuid==1.30
+
+# Optional but recommended
+# huggingface-hub==0.23.0
+# safetensors==0.4.2
