@@ -3,6 +3,8 @@ langchain-core
 langchain-community
 pypdf
 PyMuPDF
+python-dotenv
+langchain-groq
 
 # Core ML stack
 torch==2.2.1
