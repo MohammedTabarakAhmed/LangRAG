@@ -13,7 +13,7 @@ class FaissVectorStore:
         self.index = None
         self.metadata = []
         self.embedding_model = embedding_model
-        self.model = (embedding_model)
+        self.model = SentenceTransformer(embedding_model)
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         print(f"[INFO] Loaded embedding model: {embedding_model}")
@@ -48,7 +48,13 @@ class FaissVectorStore:
     def load(self):
         faiss_path = os.path.join(self.persist_dir, "faiss.index")
         meta_path = os.path.join(self.persist_dir, "metadata.pkl")
-        self.index = faiss.read_index(faiss_path)
+        if os.path.exists(faiss_path) and os.path.exists(meta_path):
+            self.index = faiss.read_index(faiss_path)
+            with open(meta_path, "rb") as f:
+                self.metadata = pickle.load(f)
+            print(f"[INFO] Loaded Faiss index and metadata from {self.persist_dir}")
+        else:
+            print("[WARN] No existing index found. Please build the vector store first.")
         with open(meta_path, "rb") as f:
             self.metadata = pickle.load(f)
         print(f"[INFO] Loaded Faiss index and metadata from {self.persist_dir}")
@@ -73,4 +79,4 @@ if __name__ == "__main__":
     store = FaissVectorStore("faiss_store")
     store.build_from_documents(docs)
     store.load()
-    print(store.query("What is attention mechanism?", top_k=3))
+    print(store.query("What is rag?", top_k=3))
