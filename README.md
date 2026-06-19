@@ -1,6 +1,6 @@
 # LangRAG: Retrieval-Augmented Generation with LangChain
 
-A comprehensive **Retrieval-Augmented Generation (RAG)** system built with LangChain that enables intelligent document processing, semantic search, and AI-powered summarization. This project demonstrates how to build a production-ready RAG pipeline using modern AI technologies.
+A comprehensive **Retrieval-Augmented Generation (RAG)** system built with LangChain that enables intelligent document processing, semantic search, and AI-powered summarization. This project demonstrates a complete production-ready pipeline from document ingestion to LLM-powered search.
 
 ---
 
@@ -25,7 +25,7 @@ A comprehensive **Retrieval-Augmented Generation (RAG)** system built with LangC
 
 - ✅ Loads documents from **5+ file formats** (PDF, TXT, CSV, Excel, Word, JSON)
 - ✅ Intelligently **chunks and embeds** documents into vector space
-- ✅ Stores embeddings in **FAISS** for ultra-fast semantic search
+- ✅ Stores embeddings in **Chroma DB** for efficient semantic search
 - ✅ Integrates **Groq LLM** for intelligent summarization
 - ✅ Provides a complete **production-ready pipeline**
 
@@ -58,8 +58,7 @@ A comprehensive **Retrieval-Augmented Generation (RAG)** system built with LangC
 ### **Vector Database & Search**
 | Technology | Version | Purpose |
 |---|---|---|
-| **FAISS** | (via ChromaDB 0.5.0) | Fast similarity search at scale |
-| **ChromaDB** | 0.5.0 | Vector store management |
+| **ChromaDB** | 0.5.0 | Vector store management & similarity search |
 
 ### **Document Processing**
 | Tool | Formats Supported |
@@ -106,10 +105,10 @@ A comprehensive **Retrieval-Augmented Generation (RAG)** system built with LangC
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│          VECTOR STORE (FAISS INDEX)                          │
-│  - Persistent storage: faiss.index                           │
-│  - Metadata storage: metadata.pkl                            │
-│  - IndexFlatL2 (L2 distance metric)                          │
+│          VECTOR STORE (CHROMA DB)                            │
+│  - Persistent storage: Chroma collection                     │
+│  - Metadata and embeddings management                        │
+│  - Similarity search with configurable distance metrics      │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
@@ -153,17 +152,15 @@ A comprehensive **Retrieval-Augmented Generation (RAG)** system built with LangC
 - **Output:** numpy array of shape `(num_chunks, 384)`
 
 #### **Step 4: Vector Store Building** (`src/vectorstore.py`)
-- Creates FAISS index with **IndexFlatL2** (L2 distance metric)
-- Stores embeddings efficiently for fast search
-- Persists index to disk:
-  - `faiss_store/faiss.index` - vector index
-  - `faiss_store/metadata.pkl` - chunk metadata
-- Supports incremental additions
+- Creates Chroma DB collection with embeddings
+- Stores embeddings efficiently with metadata
+- Persists data locally by default
+- Supports incremental additions and queries
 
 #### **Step 5: Semantic Search & Retrieval** (`src/search.py`, `src/vectorstore.py`)
 - Query embedding: Encodes user query with same model
 - Top-k search: Finds 5 most similar chunks (configurable)
-- Returns: Distance scores + metadata
+- Returns: Results with similarity scores and metadata
 
 #### **Step 6: LLM Summarization** (`src/search.py`)
 - Combines retrieved context with original query
@@ -274,23 +271,21 @@ The main entry point `app.py` demonstrates the complete workflow:
 
 ```python
 from src.data_loader import load_all_documents
-from src.vectorstore import FaissVectorStore
+from src.vectorstore import ChromaVectorStore
 from src.search import RAGSearch
 
 # Step 1: Load documents
 docs = load_all_documents("data")
 
 # Step 2: Initialize vector store
-store = FaissVectorStore("faiss_store")
+store = ChromaVectorStore("chroma_store")
 
 # Step 3: Build index (first time) or load existing
-faiss_index_path = os.path.join("faiss_store", "faiss.index")
-meta_path = os.path.join("faiss_store", "metadata.pkl")
-if not (os.path.exists(faiss_index_path) and os.path.exists(meta_path)):
-    print("[INFO] Building new Faiss index...")
+if not store.collection_exists():
+    print("[INFO] Building new Chroma collection...")
     store.build_from_documents(docs)
 else:
-    print("[INFO] Loading existing Faiss index...")
+    print("[INFO] Loading existing Chroma collection...")
     store.load()
 
 # Step 4: Run RAG search
@@ -304,10 +299,10 @@ print("Summary:", summary)
 
 #### **Custom Embedding Model**
 ```python
-from src.vectorstore import FaissVectorStore
+from src.vectorstore import ChromaVectorStore
 
-store = FaissVectorStore(
-    persist_dir="faiss_store",
+store = ChromaVectorStore(
+    persist_dir="chroma_store",
     embedding_model="all-mpnet-base-v2",  # Different model
     chunk_size=800,
     chunk_overlap=150
@@ -318,7 +313,7 @@ store.build_from_documents(docs)
 #### **Custom Search Parameters**
 ```python
 rag_search = RAGSearch(
-    persist_dir="faiss_store",
+    persist_dir="chroma_store",
     embedding_model="all-MiniLM-L6-v2",
     llm_model="llama-3.1-70b-versatile"  # More powerful LLM
 )
@@ -329,16 +324,16 @@ summary = rag_search.search_and_summarize("Your query", top_k=10)
 
 #### **Direct Vector Store Query**
 ```python
-from src.vectorstore import FaissVectorStore
+from src.vectorstore import ChromaVectorStore
 
-store = FaissVectorStore()
+store = ChromaVectorStore()
 store.load()
 
 # Search and get raw results
 results = store.query("What is machine learning?", top_k=3)
 
 for result in results:
-    print(f"Distance: {result['distance']:.4f}")
+    print(f"Score: {result['similarity_score']:.4f}")
     print(f"Text: {result['metadata']['text'][:200]}...")
 ```
 
@@ -365,16 +360,15 @@ LangRAG/
 ├── src/
 │   ├── data_loader.py          # Multi-format document loading
 │   ├── embedding.py             # Text chunking & embedding generation
-│   ├── vectorstore.py           # FAISS vector store management
+│   ├── vectorstore.py           # Chroma vector store management
 │   └── search.py                # RAG search & LLM integration
 │
 ├── notebook/
-��   ├── document.ipynb           # Document loading tutorial
+│   ├── document.ipynb           # Document loading tutorial
 │   └── pdf_loader.ipynb         # PDF processing pipeline
 │
-├── faiss_store/
-│   ├── faiss.index              # Persistent vector index
-│   └── metadata.pkl             # Chunk metadata
+├── chroma_store/                # Chroma DB storage
+│   └── ...                      # Chroma DB files
 │
 ├── data/                        # Your documents go here
 │   ├── *.pdf
@@ -417,17 +411,17 @@ LangRAG/
   - Model: all-MiniLM-L6-v2 (lightweight, 384-dim)
   - Progress bar during encoding
 
-### **3. FAISS Vector Store (`src/vectorstore.py`)**
-- **Class:** `FaissVectorStore`
+### **3. Chroma Vector Store (`src/vectorstore.py`)**
+- **Class:** `ChromaVectorStore`
 - **Methods:**
-  - `build_from_documents()`: Creates index from raw documents end-to-end
-  - `add_embeddings()`: Adds vectors to existing index
-  - `save()`: Persists index and metadata to disk
-  - `load()`: Loads index from disk
-  - `search()`: Low-level vector search with distances
+  - `build_from_documents()`: Creates collection from raw documents end-to-end
+  - `add_embeddings()`: Adds vectors to existing collection
+  - `save()`: Persists collection to disk
+  - `load()`: Loads collection from disk
+  - `search()`: Low-level vector search with similarity scores
   - `query()`: High-level semantic search with text input
-- **Storage:** Disk-persistent (faiss.index + metadata.pkl using pickle)
-- **Index Type:** IndexFlatL2 (L2 distance metric)
+- **Storage:** Local Chroma DB with persistent storage
+- **Features:** Similarity search with configurable distance metrics
 
 ### **4. RAG Search (`src/search.py`)**
 - **Class:** `RAGSearch`
@@ -446,7 +440,7 @@ LangRAG/
 
 ### **System Performance**
 - ✅ **Retrieval Accuracy:** Semantic search with learned embeddings
-- ✅ **Speed:** FAISS index provides millisecond-level search
+- ✅ **Speed:** Chroma DB provides fast similarity search
 - ✅ **Scalability:** Tested with 40+ pages; easily scales to thousands
 - ✅ **Format Support:** 6 document formats out of the box
 - ✅ **Quality:** LLM-powered summarization for coherent responses
@@ -477,7 +471,7 @@ LangRAG/
 **Project:** LangRAG - A Production-Ready Retrieval-Augmented Generation System
 
 **What It Does:**
-This project demonstrates a complete, enterprise-grade RAG pipeline that processes documents, generates semantic embeddings, and provides intelligent search-powered answers. It's a practical implementation of modern AI concepts used by companies like OpenAI, Anthropic, and Google.
+This project demonstrates a complete, enterprise-grade RAG pipeline that processes documents, generates semantic embeddings, and provides intelligent search-powered answers. It's a practical implementation of modern AI techniques used by companies like OpenAI, Anthropic, and Google.
 
 **Key Achievements:**
 
@@ -488,15 +482,15 @@ This project demonstrates a complete, enterprise-grade RAG pipeline that process
 | **Multi-format Support** | Handles PDF, TXT, CSV, Excel, Word, JSON seamlessly |
 | **Production Ready** | Persistent storage, error handling, logging, environment config |
 | **AI Integration** | Groq LLM API integration for intelligent summaries |
-| **Vector Databases** | FAISS index with L2 distance metrics at scale |
+| **Vector Databases** | Chroma DB for efficient similarity search at scale |
 
 **Technologies Mastered:**
 - 🤖 **LLMs & Embeddings:** Sentence Transformers, Groq API, llama-3.1-8b
 - 📦 **Frameworks:** LangChain ecosystem (documents, text splitters, loaders)
-- 🔍 **Vector Search:** FAISS (Facebook AI Similarity Search)
+- 🔍 **Vector Search:** Chroma DB for semantic search
 - 🐍 **Python Stack:** PyTorch, scikit-learn, transformers, NumPy
 - 🗂️ **Data Processing:** Multi-format ingestion, chunking, normalization
-- 💾 **Persistence:** Pickle serialization, file-based storage
+- 💾 **Persistence:** Local database storage with Chroma
 
 **Real-World Applications:**
 - 📄 Document Q&A systems (customer support, legal discovery)
@@ -559,7 +553,7 @@ This project is open source. Feel free to use, modify, and distribute.
 - LangChain team for the excellent document processing framework
 - Hugging Face for sentence transformers and transformer models
 - Groq for fast LLM inference
-- FAISS team (Meta/Facebook) for efficient similarity search
+- Chroma team for efficient vector database
 - Open source community for all supporting libraries
 
 ---
